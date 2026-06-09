@@ -1,6 +1,6 @@
 {
   "name": "@rexymayderio/cross-workspace-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server for reading files across multiple project workspaces",
   "type": "module",
   "bin": {
