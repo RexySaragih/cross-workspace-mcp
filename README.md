@@ -1,62 +1,33 @@
 # Cross-Workspace MCP Server
 
-An MCP (Model Context Protocol) server that gives Kiro's AI agent read access to your other project workspaces directly from the IDE — no terminal switching or CLI needed.
+An MCP (Model Context Protocol) server that gives AI agents read access to your other project workspaces directly from the IDE — no terminal switching or CLI needed.
 
-Built with **Bun** + **TypeScript** + **@modelcontextprotocol/sdk**.
+Built with **TypeScript** + **@modelcontextprotocol/sdk**.
 
 ---
 
 ## Why?
 
-When you're working in one project (e.g. `krom-falcon`) but need the agent to reference code from another project (e.g. `krom-trex`), Kiro can't see files outside the current workspace. This MCP server bridges that gap by exposing read-only tools that let the agent browse, search, and read files across all your local projects.
-
----
-
-## Prerequisites
-
-- [Bun](https://bun.sh) installed (`curl -fsSL https://bun.sh/install | bash`)
-- [Kiro IDE](https://kiro.dev) with MCP support
+When you're working in one project (e.g. `krom-falcon`) but need the agent to reference code from another project (e.g. `krom-trex`), the IDE can't see files outside the current workspace. This MCP server bridges that gap by exposing read-only tools that let the agent browse, search, and read files across all your local projects.
 
 ---
 
 ## Installation
 
-### 1. Clone / copy this project
+### Option 1: Use via npx (recommended)
 
-```bash
-# Clone to your preferred location
-git clone <repo-url> ~/Documents/shared-workspace-mcp-server
-
-# Or if you already have it:
-cd ~/Documents/shared-workspace-mcp-server
-```
-
-### 2. Install dependencies
-
-```bash
-bun install
-```
-
-That's it — no build step required. Bun runs TypeScript directly.
-
-### 3. Register in Kiro
-
-Add the server to your **global** Kiro MCP config at `~/.kiro/settings/mcp.json`:
+No cloning or downloading needed. Just add to your MCP config:
 
 ```jsonc
 {
   "mcpServers": {
     "cross-workspace": {
-      "command": "bun",
-      "args": [
-        "run",
-        "/absolute/path/to/shared-workspace-mcp-server/src/index.ts",
-      ],
+      "command": "npx",
+      "args": ["-y", "@rexymayderio/cross-workspace-mcp"],
       "env": {
         "WORKSPACE_BASE_DIR": "/Users/yourname/Documents",
         "WORKSPACE_PATTERN": "prefix-*",
       },
-      "disabled": false,
       "autoApprove": [
         "list_projects",
         "read_project_file",
@@ -66,16 +37,31 @@ Add the server to your **global** Kiro MCP config at `~/.kiro/settings/mcp.json`
         "grep_project_content",
       ],
     },
-    // ... your other MCP servers
   },
 }
 ```
 
-> **Important:** Replace the paths with your actual absolute paths. The `args` path must point to `src/index.ts` in wherever you cloned this repo.
+### Option 2: Install globally
 
-### 4. Restart / reconnect
+```bash
+npm install -g @rexymayderio/cross-workspace-mcp
+```
 
-Kiro auto-reconnects MCP servers when the config changes. You can also manually reconnect from the MCP Server view in the Kiro feature panel, or search the command palette for "MCP".
+Then use in MCP config:
+
+```jsonc
+{
+  "mcpServers": {
+    "cross-workspace": {
+      "command": "cross-workspace-mcp",
+      "env": {
+        "WORKSPACE_BASE_DIR": "/Users/yourname/Documents",
+        "WORKSPACE_PATTERN": "prefix-*",
+      },
+    },
+  },
+}
+```
 
 ---
 
@@ -83,10 +69,10 @@ Kiro auto-reconnects MCP servers when the config changes. You can also manually 
 
 All configuration is done via environment variables in the MCP config — no code changes needed.
 
-| Env Variable         | Default                            | Description                                                   |
-| -------------------- | ---------------------------------- | ------------------------------------------------------------- |
-| `WORKSPACE_BASE_DIR` | `/Users/johanes.saragih/Documents` | The parent directory where your projects live                 |
-| `WORKSPACE_PATTERN`  | `krom-*`                           | Glob-like pattern to match project directories (prefix match) |
+| Env Variable         | Default       | Description                                                   |
+| -------------------- | ------------- | ------------------------------------------------------------- |
+| `WORKSPACE_BASE_DIR` | `~/Documents` | The parent directory where your projects live                 |
+| `WORKSPACE_PATTERN`  | `krom-*`      | Glob-like pattern to match project directories (prefix match) |
 
 ### How discovery works
 
@@ -184,6 +170,24 @@ Search inside file contents using text or regex patterns.
 
 ---
 
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Run locally
+npm start
+
+# Watch mode
+npm run dev
+```
+
+---
+
 ## Project Structure
 
 ```
@@ -205,42 +209,6 @@ shared-workspace-mcp-server/
 
 ---
 
-## Troubleshooting
-
-### Server not showing up in Kiro
-
-1. Check that `bun` is in your PATH — run `which bun` in terminal
-2. Verify the absolute path in `args` points to the correct `src/index.ts`
-3. Check `~/.kiro/settings/mcp.json` is valid JSON (no trailing commas, etc.)
-4. Look at the MCP Server panel in Kiro for connection errors
-
-### No projects discovered
-
-1. Verify `WORKSPACE_BASE_DIR` points to the right parent directory
-2. Check that directories matching `WORKSPACE_PATTERN` actually exist there
-3. Test manually: `ls ~/Documents | grep krom-`
-
-### "Access denied" errors
-
-The file you're trying to read is outside the discovered project roots. Check that the project directory matches the pattern and exists in the base directory.
-
----
-
-## Development
-
-```bash
-# Run with watch mode (auto-restart on changes)
-bun --watch src/index.ts
-
-# Type check
-bunx tsc --noEmit
-
-# Test discovery manually
-bun -e "import { ALLOWED_ROOTS } from './src/config.ts'; console.log(ALLOWED_ROOTS)"
-```
-
----
-
 ## License
 
-Internal tool — Krom Bank Technology Engineering.
+MIT

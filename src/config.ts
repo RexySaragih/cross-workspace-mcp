@@ -1,5 +1,6 @@
 import { resolve } from "path";
 import { readdirSync, statSync } from "fs";
+import { homedir } from "os";
 
 /**
  * Cross-Workspace MCP Server Configuration
@@ -11,7 +12,7 @@ import { readdirSync, statSync } from "fs";
  * Defaults to "krom-*" if not set.
  */
 export const WORKSPACE_BASE_DIR =
-  process.env.WORKSPACE_BASE_DIR || "/Users/johanes.saragih/Documents";
+  process.env.WORKSPACE_BASE_DIR || resolve(homedir(), "Documents");
 
 export const WORKSPACE_PATTERN = process.env.WORKSPACE_PATTERN || "krom-*";
 

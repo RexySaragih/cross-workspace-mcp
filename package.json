@@ -1,17 +1,41 @@
 {
-  "name": "cross-workspace-mcp",
+  "name": "@rexymayderio/cross-workspace-mcp",
   "version": "1.0.0",
+  "description": "MCP server for reading files across multiple project workspaces",
   "type": "module",
+  "bin": {
+    "cross-workspace-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "workspace",
+    "cross-project",
+    "ai-tools"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nicholasjohanessaragih/cross-workspace-mcp.git"
+  },
   "scripts": {
-    "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target node",
-    "dev": "bun --watch src/index.ts"
+    "build": "tsc && chmod +x dist/index.js",
+    "prepublishOnly": "npm run build",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.0"
+    "@types/node": "^20.0.0",
+    "typescript": "^5.5.0"
   }
 }
