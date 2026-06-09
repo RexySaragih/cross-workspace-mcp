@@ -8,7 +8,7 @@ Built with **TypeScript** + **@modelcontextprotocol/sdk**.
 
 ## Why?
 
-When you're working in one project (e.g. `krom-falcon`) but need the agent to reference code from another project (e.g. `krom-trex`), the IDE can't see files outside the current workspace. This MCP server bridges that gap by exposing read-only tools that let the agent browse, search, and read files across all your local projects.
+When you're working in one project but need the agent to reference code from another project, the IDE can't see files outside the current workspace. This MCP server bridges that gap by exposing read-only tools that let the agent browse, search, and read files across all your local projects.
 
 ---
 
@@ -25,8 +25,8 @@ No cloning or downloading needed. Just add to your MCP config:
       "command": "npx",
       "args": ["-y", "@rexymayderio/cross-workspace-mcp"],
       "env": {
-        "WORKSPACE_BASE_DIR": "/Users/yourname/Documents",
-        "WORKSPACE_PATTERN": "prefix-*",
+        "WORKSPACE_BASE_DIR": "/Users/yourname/Projects",
+        "WORKSPACE_PATTERN": "my-app-*",
       },
       "autoApprove": [
         "list_projects",
@@ -55,8 +55,8 @@ Then use in MCP config:
     "cross-workspace": {
       "command": "cross-workspace-mcp",
       "env": {
-        "WORKSPACE_BASE_DIR": "/Users/yourname/Documents",
-        "WORKSPACE_PATTERN": "prefix-*",
+        "WORKSPACE_BASE_DIR": "/Users/yourname/Projects",
+        "WORKSPACE_PATTERN": "my-app-*",
       },
     },
   },
@@ -72,14 +72,14 @@ All configuration is done via environment variables in the MCP config — no cod
 | Env Variable         | Default       | Description                                                   |
 | -------------------- | ------------- | ------------------------------------------------------------- |
 | `WORKSPACE_BASE_DIR` | `~/Documents` | The parent directory where your projects live                 |
-| `WORKSPACE_PATTERN`  | `krom-*`      | Glob-like pattern to match project directories (prefix match) |
+| `WORKSPACE_PATTERN`  | `*`           | Glob-like pattern to match project directories (prefix match) |
 
 ### How discovery works
 
 On startup, the server scans `WORKSPACE_BASE_DIR` for any **directory** whose name starts with the pattern prefix (everything before `*`). For example:
 
-- Pattern `krom-*` → matches `krom-falcon`, `krom-trex`, `krom-superzoo`, etc.
 - Pattern `my-app-*` → matches `my-app-frontend`, `my-app-backend`, etc.
+- Pattern `project-*` → matches `project-api`, `project-web`, `project-shared`, etc.
 - Pattern `*` → matches ALL directories (use with caution)
 
 Any new project you clone into the base directory that matches the pattern will be automatically discovered on the next server restart.
@@ -104,7 +104,7 @@ Read a single file from any allowed project workspace.
 | --------- | ------ | -------- | ------------------------- |
 | `path`    | string | ✅       | Absolute path to the file |
 
-**Use case:** "Show me the auth middleware from krom-falcon"
+**Use case:** "Show me the auth middleware from my-app-backend"
 
 ---
 
@@ -116,7 +116,7 @@ Read multiple files at once. Useful for comparing implementations across project
 | --------- | -------- | -------- | ---------------------------- |
 | `paths`   | string[] | ✅       | Array of absolute file paths |
 
-**Use case:** "Compare the user model in krom-falcon vs krom-trex"
+**Use case:** "Compare the user model in my-app-backend vs my-app-api"
 
 ---
 
@@ -129,7 +129,7 @@ List files and directories at a given path.
 | `path`      | string  | ✅       | Absolute path to the directory                         |
 | `recursive` | boolean | ❌       | List 1 level deep into subdirectories (default: false) |
 
-**Use case:** "What's in the src/modules folder of krom-camel?"
+**Use case:** "What's in the src/modules folder of my-app-backend?"
 
 ---
 
@@ -137,12 +137,12 @@ List files and directories at a given path.
 
 Search for files by name pattern across all (or a specific) project.
 
-| Parameter | Type   | Required | Description                                           |
-| --------- | ------ | -------- | ----------------------------------------------------- |
-| `pattern` | string | ✅       | Filename or partial name (case-insensitive)           |
-| `project` | string | ❌       | Limit search to a specific project (e.g. `krom-trex`) |
+| Parameter | Type   | Required | Description                                            |
+| --------- | ------ | -------- | ------------------------------------------------------ |
+| `pattern` | string | ✅       | Filename or partial name (case-insensitive)            |
+| `project` | string | ❌       | Limit search to a specific project (e.g. `my-app-api`) |
 
-**Use case:** "Find all files named 'bifast' across projects"
+**Use case:** "Find all files named 'auth' across projects"
 
 ---
 
@@ -156,7 +156,7 @@ Search inside file contents using text or regex patterns.
 | `project`    | string | ❌       | Limit to a specific project                            |
 | `extensions` | string | ❌       | Comma-separated extensions to filter (e.g. `.ts,.tsx`) |
 
-**Use case:** "Find where `BiFastService` is used in krom-falcon"
+**Use case:** "Find where `UserService` is used in my-app-backend"
 
 ---
 
