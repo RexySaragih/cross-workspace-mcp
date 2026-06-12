@@ -1,6 +1,6 @@
 {
   "name": "@rexymayderio/cross-workspace-mcp",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "MCP server for reading files across multiple project workspaces",
   "type": "module",
   "bin": {
@@ -22,7 +22,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nicholasjohanessaragih/cross-workspace-mcp.git"
+    "url": "https://github.com/RexySaragih/cross-workspace-mcp.git"
   },
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
