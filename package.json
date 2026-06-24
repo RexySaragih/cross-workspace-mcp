@@ -1,7 +1,7 @@
 {
   "name": "@rexymayderio/cross-workspace-mcp",
-  "version": "1.0.3",
-  "description": "MCP server for reading files across multiple project workspaces",
+  "version": "1.2.0",
+  "description": "MCP server for reading, writing, and diagnosing files across multiple project workspaces",
   "type": "module",
   "bin": {
     "cross-workspace-mcp": "dist/index.js"
@@ -32,10 +32,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
+    "typescript": "^5.5.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.5.0"
+    "@types/node": "^20.0.0"
   }
 }
