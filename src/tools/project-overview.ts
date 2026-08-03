@@ -1,93 +1,120 @@
+import { readFile, readdir } from "fs/promises";
+import { basename, join } from "path";
 import { z } from "zod";
-import { readdir, readFile, stat } from "fs/promises";
-import { join } from "path";
-import { ALLOWED_ROOTS } from "../config.js";
+import { IGNORED_DIRS, describeDiscovery, refreshAllowedRoots } from "../config.js";
+import { ok } from "../shared/response.js";
+import { resolveRoots } from "../shared/roots.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+const MAX_LISTED_FILES = 20;
 
 interface ProjectInfo {
   name: string;
   path: string;
-  hasPackageJson: boolean;
   packageName?: string;
   description?: string;
-  topLevelDirs: string[];
-  topLevelFiles: string[];
+  directories: string[];
+  files: string[];
+}
+
+async function readPackageMetadata(
+  root: string
+): Promise<{ packageName?: string; description?: string }> {
+  try {
+    const raw = await readFile(join(root, "package.json"), "utf-8");
+    const parsed = JSON.parse(raw) as { name?: string; description?: string };
+    return { packageName: parsed.name, description: parsed.description };
+  } catch {
+    return {};
+  }
 }
 
 async function getProjectInfo(root: string): Promise<ProjectInfo | null> {
   try {
     const entries = await readdir(root, { withFileTypes: true });
-    const dirs = entries
-      .filter((e) => e.isDirectory() && !e.name.startsWith(".") && e.name !== "node_modules")
-      .map((e) => e.name);
-    const files = entries.filter((e) => e.isFile()).map((e) => e.name);
-
-    let packageName: string | undefined;
-    let description: string | undefined;
-    let hasPackageJson = false;
-
-    if (files.includes("package.json")) {
-      hasPackageJson = true;
-      try {
-        const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf-8"));
-        packageName = pkg.name;
-        description = pkg.description;
-      } catch {}
-    }
+    const files = entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
 
     return {
-      name: root.split("/").pop() || root,
+      name: basename(root),
       path: root,
-      hasPackageJson,
-      packageName,
-      description,
-      topLevelDirs: dirs,
-      topLevelFiles: files.slice(0, 20), // limit for readability
+      ...(files.includes("package.json") ? await readPackageMetadata(root) : {}),
+      directories: entries
+        .filter((entry) => entry.isDirectory())
+        .filter((entry) => !entry.name.startsWith(".") && !IGNORED_DIRS.has(entry.name))
+        .map((entry) => entry.name),
+      files: files.slice(0, MAX_LISTED_FILES),
     };
   } catch {
     return null;
   }
 }
 
-export function registerProjectOverview(server: McpServer) {
-  server.tool(
+function render(project: ProjectInfo): string {
+  const lines = [`## ${project.name}`, `Path: ${project.path}`];
+  if (project.packageName) lines.push(`Package: ${project.packageName}`);
+  if (project.description) lines.push(`Description: ${project.description}`);
+  lines.push(`Directories: ${project.directories.join(", ") || "(none)"}`);
+  lines.push(`Files: ${project.files.join(", ") || "(none)"}`);
+  return lines.join("\n");
+}
+
+async function describeProjects(project?: string): Promise<string> {
+  const roots = resolveRoots(project);
+  const infos = await Promise.all(roots.map(getProjectInfo));
+  const found = infos.filter((info): info is ProjectInfo => info !== null);
+
+  if (found.length === 0) {
+    return `No accessible projects found.\nDiscovery: ${describeDiscovery()}`;
+  }
+
+  return found.map(render).join("\n\n---\n\n");
+}
+
+export function registerProjectOverview(server: McpServer): void {
+  server.registerTool(
     "list_projects",
-    "List all allowed project workspaces with basic info (package name, top-level structure). Useful for discovering available projects.",
-    {},
+    {
+      title: "List projects",
+      description:
+        "List all allowed project workspaces with basic info (package name, top-level structure). Useful for discovering available projects.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      inputSchema: {
+        project: z
+          .string()
+          .optional()
+          .describe("Optional: only describe projects matching this directory name"),
+      },
+    },
+    async ({ project }) => ok(await describeProjects(project))
+  );
+}
+
+export function registerRefreshProjects(server: McpServer): void {
+  server.registerTool(
+    "refresh_projects",
+    {
+      title: "Refresh project discovery",
+      description:
+        "Re-scan the workspace base directory for projects. Use after cloning a new repository so it becomes visible without restarting the server.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      inputSchema: {},
+    },
     async () => {
-      const projects: ProjectInfo[] = [];
-
-      for (const root of ALLOWED_ROOTS) {
-        const info = await getProjectInfo(root);
-        if (info) projects.push(info);
-      }
-
-      if (projects.length === 0) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "No accessible projects found.",
-            },
-          ],
-        };
-      }
-
-      const text = projects
-        .map((p) => {
-          let out = `## ${p.name}\n`;
-          out += `Path: ${p.path}\n`;
-          if (p.packageName) out += `Package: ${p.packageName}\n`;
-          if (p.description) out += `Description: ${p.description}\n`;
-          out += `Directories: ${p.topLevelDirs.join(", ")}\n`;
-          out += `Files: ${p.topLevelFiles.join(", ")}`;
-          return out;
-        })
-        .join("\n\n---\n\n");
-
-      return {
-        content: [{ type: "text" as const, text }],
-      };
+      const roots = refreshAllowedRoots();
+      const names = roots.map((root) => basename(root)).join(", ") || "(none)";
+      return ok(
+        `OK ${roots.length} project(s): ${names}\nDiscovery: ${describeDiscovery()}`
+      );
     }
   );
 }

@@ -1,6 +1,6 @@
 {
   "name": "@rexymayderio/cross-workspace-mcp",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "MCP server for reading, writing, and diagnosing files across multiple project workspaces",
   "type": "module",
   "bin": {
@@ -26,9 +26,18 @@
   },
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
-    "prepublishOnly": "npm run build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"{src,test}/**/*.ts\"",
+    "format:check": "prettier --check \"{src,test}/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build",
     "start": "node dist/index.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
@@ -36,6 +45,12 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.8.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10"
   }
 }

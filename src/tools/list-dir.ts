@@ -1,73 +1,77 @@
-import { z } from "zod";
+import type { Dirent } from "fs";
 import { readdir } from "fs/promises";
-import { isAllowedPath } from "../config.js";
+import { join } from "path";
+import { z } from "zod";
+import { IGNORED_DIRS, limits } from "../config.js";
+import { guardPath } from "../security/path-guard.js";
+import { denied, err, ok } from "../shared/response.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-export function registerListDir(server: McpServer) {
-  server.tool(
+function label(entry: Dirent): string {
+  if (entry.isDirectory()) return "dir ";
+  if (entry.isSymbolicLink()) return "link";
+  return "file";
+}
+
+async function listChildren(parent: string): Promise<string[]> {
+  try {
+    const entries = await readdir(parent, { withFileTypes: true });
+    return entries.map((entry) => `  ${label(entry)} ${entry.name}`);
+  } catch {
+    return [];
+  }
+}
+
+export function registerListDir(server: McpServer): void {
+  server.registerTool(
     "list_project_dir",
-    "List files and directories in a given path from any allowed project workspace.",
     {
-      path: z.string().describe("Absolute path to the directory to list"),
-      recursive: z
-        .boolean()
-        .optional()
-        .default(false)
-        .describe("Whether to list recursively (1 level deep)"),
+      title: "List project directory",
+      description:
+        "List files and directories in a given path from any allowed project workspace.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      inputSchema: {
+        path: z.string().describe("Absolute path to the directory to list"),
+        recursive: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Also list one level into each subdirectory"),
+      },
     },
     async ({ path, recursive }) => {
-      if (!isAllowedPath(path)) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Access denied: ${path} is not within allowed project roots`,
-            },
-          ],
-          isError: true,
-        };
-      }
+      const guard = guardPath(path);
+      if (!guard.ok) return denied(path, guard);
 
       try {
-        const entries = await readdir(path, { withFileTypes: true });
+        const entries = await readdir(guard.real, { withFileTypes: true });
         const lines: string[] = [];
 
         for (const entry of entries) {
-          const prefix = entry.isDirectory() ? "📁" : "📄";
-          lines.push(`${prefix} ${entry.name}`);
+          if (lines.length >= limits.maxListEntries) break;
+          lines.push(`${label(entry)} ${entry.name}`);
 
-          if (recursive && entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules") {
-            try {
-              const subPath = `${path}/${entry.name}`;
-              const subEntries = await readdir(subPath, { withFileTypes: true });
-              for (const sub of subEntries) {
-                const subPrefix = sub.isDirectory() ? "📁" : "📄";
-                lines.push(`  ${subPrefix} ${sub.name}`);
-              }
-            } catch {
-              // skip unreadable subdirectories
-            }
-          }
+          const shouldDescend =
+            recursive && entry.isDirectory() && !IGNORED_DIRS.has(entry.name);
+          if (!shouldDescend) continue;
+
+          lines.push(...(await listChildren(join(guard.real, entry.name))));
         }
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: lines.join("\n") || "(empty directory)",
-            },
-          ],
-        };
-      } catch (e: any) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error listing directory: ${e.message}`,
-            },
-          ],
-          isError: true,
-        };
+        if (lines.length === 0) return ok(`${path} (empty directory)`);
+
+        const truncated =
+          entries.length > limits.maxListEntries
+            ? ` (showing ${limits.maxListEntries}/${entries.length})`
+            : "";
+        return ok(`${path}${truncated}\n${lines.join("\n")}`);
+      } catch (error) {
+        return err("list", path, error);
       }
     }
   );

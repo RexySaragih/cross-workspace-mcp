@@ -1,88 +1,60 @@
 import { z } from "zod";
-import { readdir } from "fs/promises";
-import { join } from "path";
-import {
-  ALLOWED_ROOTS,
-  IGNORED_DIRS,
-  MAX_SEARCH_DEPTH,
-  MAX_SEARCH_RESULTS,
-} from "../config.js";
+import { limits } from "../config.js";
+import { fail, ok } from "../shared/response.js";
+import { projectNames, resolveRoots } from "../shared/roots.js";
+import { walkFiles } from "../shared/walk.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-async function findFiles(
-  dir: string,
-  pattern: string,
-  results: string[],
-  depth: number
-): Promise<void> {
-  if (depth > MAX_SEARCH_DEPTH || results.length >= MAX_SEARCH_RESULTS) return;
-
-  try {
-    const entries = await readdir(dir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      if (results.length >= MAX_SEARCH_RESULTS) break;
-      if (IGNORED_DIRS.has(entry.name)) continue;
-
-      const fullPath = join(dir, entry.name);
-
-      if (entry.isDirectory()) {
-        await findFiles(fullPath, pattern, results, depth + 1);
-      } else if (entry.name.toLowerCase().includes(pattern.toLowerCase())) {
-        results.push(fullPath);
-      }
-    }
-  } catch {
-    // skip unreadable directories
-  }
-}
-
-export function registerSearchFiles(server: McpServer) {
-  server.tool(
+export function registerSearchFiles(server: McpServer): void {
+  server.registerTool(
     "search_project_files",
-    "Search for files by name pattern across all allowed project workspaces. Returns matching file paths.",
     {
-      pattern: z
-        .string()
-        .describe("Filename or partial name to search for (case-insensitive)"),
-      project: z
-        .string()
-        .optional()
-        .describe(
-          "Optional: limit search to a specific project root (e.g. 'krom-falcon')"
-        ),
+      title: "Search project files by name",
+      description:
+        "Search for files by name pattern across all allowed project workspaces. Returns matching file paths.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      inputSchema: {
+        pattern: z
+          .string()
+          .min(1)
+          .describe("Filename or partial name to search for (case-insensitive)"),
+        project: z
+          .string()
+          .optional()
+          .describe("Optional: limit search to a specific project directory name"),
+      },
     },
     async ({ pattern, project }) => {
-      const roots = project
-        ? ALLOWED_ROOTS.filter((r) => r.includes(project))
-        : ALLOWED_ROOTS;
-
+      const roots = resolveRoots(project);
       if (roots.length === 0) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `No matching project found for: ${project}`,
-            },
-          ],
-          isError: true,
-        };
+        return fail(
+          `FAIL no project matches "${project}" (available: ${projectNames().join(", ") || "none"})`
+        );
       }
 
+      const needle = pattern.toLowerCase();
       const results: string[] = [];
 
       for (const root of roots) {
-        await findFiles(root, pattern, results, 0);
+        if (results.length >= limits.maxSearchResults) break;
+        await walkFiles(root, {
+          onFile: ({ path, name }) => {
+            if (name.toLowerCase().includes(needle)) results.push(path);
+            return results.length < limits.maxSearchResults;
+          },
+        });
       }
 
-      const text =
-        results.length > 0
-          ? `Found ${results.length} match(es):\n\n${results.join("\n")}`
-          : `No files matching "${pattern}" found.`;
+      if (results.length === 0) return ok(`No files matching "${pattern}" found.`);
 
-      return {
-        content: [{ type: "text" as const, text }],
-      };
+      const capped =
+        results.length >= limits.maxSearchResults ? " (result cap reached)" : "";
+      return ok(`Found ${results.length} match(es)${capped}:\n\n${results.join("\n")}`);
     }
   );
 }
